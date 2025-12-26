@@ -18,7 +18,7 @@ class SAGANTrainer:
 
     def __init__(self, generator, discriminator, dataloader, config):
         # 상수 
-        self.device = config["device"]
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         TRAIN = config["train"]
         self.sample_step = TRAIN["sample_step"]
@@ -69,14 +69,19 @@ class SAGANTrainer:
                 self.d_opt.step()
 
                 # ============ 생성자 학습 ==============
-                self.g_opt.zero_grad()
+                # D_LOSS = 0 문제(판별자 승리 문제) 해결을 위해 2번씩 생성자 훈련  
+                for _ in range(2):
+                    self.g_opt.zero_grad()
 
-                # 가짜 이미지를 판별자가 진짜로 믿게 만들기 
-                g_out_fake = self.d(fake_imgs)
-                g_loss = -g_out_fake.mean()
+                    # 가짜 이미지를 판별자가 진짜로 믿게 만들기 
+                    z = torch.randn(b_size, self.latent_dim).to(self.device)
+                    fake_imgs_new = self.g(z)
 
-                g_loss.backward()
-                self.g_opt.step()
+                    g_out_fake = self.d(fake_imgs_new)
+                    g_loss = -g_out_fake.mean()
+
+                    g_loss.backward()
+                    self.g_opt.step()
 
                 # tqdm 진행바 오른쪽에 실시간 Loss 값 표시 
                 progress_bar.set_postfix({
@@ -112,10 +117,10 @@ class SAGANTrainer:
             # tanh [-1, 1] -> [0, 1] 복원 
             samples = (samples + 1) / 2
             
-            if not sample_dir: 
+            if not os.path.exists(sample_dir): 
                 os.makedirs(sample_dir)
             
-            sample_img_path = os.path.join(sample_dir, f"epoch_{epoch}.png")
+            sample_img_path = os.path.join(sample_dir, f"epoch_{epoch + 1}.png")
             save_image(samples, sample_img_path, nrow=8)
     
     def save_checkpoint(self, epoch):
@@ -137,7 +142,7 @@ class SAGANTrainer:
             "gamma_d": self.get_gamma_values(self.d)
         }
 
-        path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch}.pth")
+        path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch + 1}.pth")
         torch.save(state, path)
         print(f"Epoch {epoch} - Checkpoint Saved: {path}")
 

@@ -1,5 +1,4 @@
-project_name: "Weeeing-SAGAN"
-device: "cuda"
+project_name: "Wedding-SAGAN"
 
 model:
   latent_dim: 256
@@ -18,6 +17,6 @@ train:
   checkpoint_step: 50
 
 path:
-  data_dir: "./data/weddings"
+  data_dir: "./data/weddings_6145"
   sample_dir: "./samples"
   checkpoint_dir: "./checkpoints"

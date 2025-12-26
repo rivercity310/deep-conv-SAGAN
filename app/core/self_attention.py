@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F 
 
 
 class SelfAttention(nn.Module):
@@ -47,13 +48,14 @@ class SelfAttention(nn.Module):
         => y_i = gamma * o_i + x_i
     """
 
-    def __init__(self, in_channels: int, k: int = 8):
+    def __init__(self, in_channels: int, k: int = 8, allow_sdpa: bool = True):
         super(SelfAttention, self).__init__()
-        emb_channels = in_channels // k
-        self.key = nn.Conv2d(in_channels=in_channels, out_channels=emb_channels, kernel_size=1)
-        self.query = nn.Conv2d(in_channels=in_channels, out_channels=emb_channels, kernel_size=1)
-        self.value = nn.Conv2d(in_channels=in_channels, out_channels=emb_channels, kernel_size=1)
-        self.self_att = nn.Conv2d(in_channels=emb_channels, out_channels=in_channels, kernel_size=1)
+        self.emb_channels = in_channels // k
+        self.allow_sdpa = allow_sdpa
+        self.key = nn.Conv2d(in_channels=in_channels, out_channels=self.emb_channels, kernel_size=1)
+        self.query = nn.Conv2d(in_channels=in_channels, out_channels=self.emb_channels, kernel_size=1)
+        self.value = nn.Conv2d(in_channels=in_channels, out_channels=self.emb_channels, kernel_size=1)
+        self.self_att = nn.Conv2d(in_channels=self.emb_channels, out_channels=in_channels, kernel_size=1)
         self.gamma = nn.Parameter(torch.zeros(1))
         self.softmax = nn.Softmax(dim=-1)
 
@@ -69,22 +71,38 @@ class SelfAttention(nn.Module):
         batch_size, C, W, H = x.size()
         N = W * H                                                           # 총 Feature 개수
 
-        # Flatten 작업: (B, C, W, H) -> (B, C, N)
-        f_x = self.key(x).view(batch_size, -1, N)                           # Key: (B, C', N)
-        g_x = self.query(x).view(batch_size, -1, N).permute(0, 2, 1)        # Query: (B, N, C')
-        h_x = self.value(x).view(batch_size, -1, N)                         # Value: (B, C', N)
+        if self.allow_sdpa:
+            # Q, K, V 생성 및 SDPA 형식으로 변환 (L = N, E = emb_channels)
+            # SDPA 기대 형식: (B, H< L< E) -> 여기서 헤드(H)는 1로 설정 
+            q = self.query(x).view(batch_size, self.emb_channels, N).permute(0, 2, 1).unsqueeze(1)    
+            k = self.key(x).view(batch_size, self.emb_channels, N).permute(0, 2, 1).unsqueeze(1)
+            v = self.value(x).view(batch_size, self.emb_channels, N).permute(0, 2, 1).unsqueeze(1)
 
-        # (B, N, C') * (B, C', N) => (B, N, N): N x N Attention Map 생성 
-        s = torch.bmm(g_x, f_x)
-        beta = self.softmax(s)
+            # scale 인자를 따로 주지 않으면 기본값인 sqrt(d_k) 적용
+            # 이는 값이 너무 커지는 것을 막아 softmax가 한쪽으로 쏠리는 Saturation 현상 완화
+            attn_out = F.scaled_dot_product_attention(q, k, v)   # (B, 1, N, C')
 
-        # Value에 Attention 적용 (V * Attention_Map^T)
-        # (B, C', N) * (B, N, N) => (B, C', N)
-        v = torch.bmm(h_x, beta.permute(0, 2, 1))
+            # 다시 (B, C', W, H)로 복원 
+            o = attn_out.squeeze(1).permute(0, 2, 1).view(batch_size, self.emb_channels, W, H)
+            o = self.self_att(o)
 
-        # v를 다시 (B, C', W, H)로 복원 
-        v = v.view(batch_size, -1, W, H)
-        o = self.self_att(v)
+        else:
+            # Flatten 작업: (B, C, W, H) -> (B, C, N)
+            q = self.query(x).view(batch_size, -1, N).permute(0, 2, 1)        # Query: (B, N, C')
+            k = self.key(x).view(batch_size, -1, N)                           # Key: (B, C', N)
+            v = self.value(x).view(batch_size, -1, N)                         # Value: (B, C', N)
+
+            # (B, N, C') * (B, C', N) => (B, N, N): N x N Attention Map 생성 
+            s = torch.bmm(q, k)
+            beta = self.softmax(s)
+
+            # Value에 Attention 적용 (V * Attention_Map^T)
+            # (B, C', N) * (B, N, N) => (B, C', N)
+            v = torch.bmm(v, beta.permute(0, 2, 1))
+
+            # v를 다시 (B, C', W, H)로 복원 
+            v = v.view(batch_size, -1, W, H)
+            o = self.self_att(v)
 
         # 잔차 연결(Residual Connection) 적용 -> 처음부터 어텐션을 강하게 사용하면 학습이 망가짐 
         # 학습 초기(gamma가 0에 가까울 때)는 기존 Convolution 결과(x)만 사용하다가 
