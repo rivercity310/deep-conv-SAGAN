@@ -34,7 +34,7 @@ class SelfAttention(nn.Module):
         생성된 Query와 Key의 행렬곱 연산 및 Softmax 함수를 통해 attention map 생성 
         계산된 attention map은 query와 key 값들의 연관된 정도에 따라 다른 밝기 수준을 가짐.
         => 관련성이 높으면 밝게, 낮으면 어둡게 표현됨.
-        => Attention(Q, K, V) = softmax((QK^T) / (d_k)) * V
+        => Attention(Q, K, V) = softmax((QK^T) / sqrt(d_k)) * V
 
         [3]
         생성된 attention map을 Value와 행렬곱 및 1x1 convolution 연산하여 self-attention feature map(o) 계산 
@@ -43,7 +43,7 @@ class SelfAttention(nn.Module):
         [4]
         최종 결과는 o와 입력값 x를 더해 출력. 이때 학습 가능한 스칼라 값 0으로 초기화된 gamma를 o에 곱함.
         네트워크가 처음에는 local 주변 신호에 의존하다 점차 학습이 진행되며 non-local 신호에 더 많은 가중치를 부여하는 방법으로 학습.
-        즉, 초기에 무작위한 값을 뱉어내는 Self Attention 연산을 반영하면 학습이 불안정해지므로 점차 적용하기 위함.
+        즉, 초기에 무작위한 값을 뱉어내는 Self Attention 연산을 출력에 반영하면 학습이 불안정해지므로 점진적으로 적용하기 위함.
         => y_i = gamma * o_i + x_i
     """
 
