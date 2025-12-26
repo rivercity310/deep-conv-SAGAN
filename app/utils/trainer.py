@@ -40,6 +40,7 @@ class SAGANTrainer:
         self.g_opt = optim.Adam(params=self.g.parameters(), lr=TRAIN["lr_g"], betas=betas)
         self.d_opt = optim.Adam(params=self.d.parameters(), lr=TRAIN["lr_d"], betas=betas)
 
+        self.fixed_noise = torch.randn(32, self.latent_dim, 1, 1).to(self.device)
 
     def train(self, epochs: int):
         for epoch in range(epochs):
@@ -94,9 +95,23 @@ class SAGANTrainer:
                     "D_LOSS": f"{d_loss.item():.4f}",
                     "G_LOSS": f"{g_loss.item():.4f}"
                 })
+            
+            # 고정 노이즈 이미지 생성 
+            sample_dir = os.path.abspath(os.path.join(os.getcwd(), self.sample_dir))
+            fixed_noise_path = os.path.join(sample_dir, f"fixed_noise_{epoch}.png")
+            random_noise_path = os.path.join(sample_dir, f"random_noise_{epoch}.png")
 
-            if (epoch + 1) % self.sample_step == 0:
-                self.save_samples(epoch)
+            self.g.eval()
+            with torch.no_grad():
+                # 고정 노이즈 이미지
+                fake_img = self.g(self.fixed_noise).detach().cpu()
+                save_image(fake_img, fixed_noise_path, normalize=True, value_range=(-1, 1))
+
+                # 랜덤 노이즈 이미지 
+                z = torch.randn(32, self.latent_dim).to(self.device)
+                fake_img_random = self.g(z).detach().cpu()
+                save_image(fake_img_random, random_noise_path, normalize=True, value_range=(-1, 1))
+            self.g.train()
 
             if (epoch + 1) % self.checkpoint_step == 0:
                 self.save_checkpoint(epoch)
@@ -112,26 +127,7 @@ class SAGANTrainer:
         self.d_opt.load_state_dict(checkpoint['d_opt_state_dict'])
         
         return checkpoint['epoch']
-    
-    def save_samples(self, epoch):
-        sample_dir = os.path.abspath(os.path.join(os.getcwd(), self.sample_dir))
-        self.g.eval()
-
-        with torch.no_grad():
-            z = torch.randn(32, self.latent_dim).to(self.device)
-            samples = self.g(z)
-
-            # tanh [-1, 1] -> [0, 1] 복원 
-            samples = (samples + 1) / 2
-            
-            if not os.path.exists(sample_dir): 
-                os.makedirs(sample_dir)
-            
-            sample_img_path = os.path.join(sample_dir, f"epoch_{epoch + 1}.png")
-            save_image(samples, sample_img_path, nrow=8)
-
-        self.g.train()
-    
+        
     def save_checkpoint(self, epoch):
         """
         모델 및 옵티마이저 상태 저장 
@@ -160,5 +156,5 @@ class SAGANTrainer:
         for name, param in model.named_parameters():
             if "gamma" in name:
                 gammas.append(param.item())
-                
+
         return gammas

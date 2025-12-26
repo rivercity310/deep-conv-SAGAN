@@ -1,8 +1,8 @@
 project_name: "Wedding-SAGAN"
 
 model:
-  latent_dim: 256
-  image_size: 256
+  latent_dim: 128
+  image_size: 128
   g_conv_dim: 64
   d_conv_dim: 64
 
@@ -17,6 +17,6 @@ train:
   checkpoint_step: 50
 
 path:
-  data_dir: "./data/weddings_6145"
+  data_dir: "./data/wedding_dataset_128"
   sample_dir: "./samples"
   checkpoint_dir: "./checkpoints"

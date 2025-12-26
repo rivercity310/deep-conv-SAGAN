@@ -13,7 +13,7 @@ def rgb_loader(path):
         return img.convert("RGB")
 
 
-def get_dataloader(root_dir, batch_size, image_size=256):
+def get_dataloader(root_dir, batch_size, image_size):
     """
     DataLoader를 생성하여 반환하는 헬퍼 함수 
 
@@ -35,7 +35,7 @@ def get_dataloader(root_dir, batch_size, image_size=256):
     ])
 
     root_dir = os.path.abspath(os.path.join(os.getcwd(), root_dir))
-    dataset = datasets.ImageFolder(root=root_dir, transform=transform, loader=rgb_loader)
+    dataset = datasets.ImageFolder(root=root_dir, transform=transform)
 
     return DataLoader(
         dataset=dataset,
