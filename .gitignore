@@ -1,4 +1,4 @@
 samples/**
 checkpoints/**
 data/**
-configs/**
+**/__pycache__

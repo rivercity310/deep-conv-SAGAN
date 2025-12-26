@@ -48,7 +48,7 @@ class SelfAttention(nn.Module):
         => y_i = gamma * o_i + x_i
     """
 
-    def __init__(self, in_channels: int, k: int = 8, allow_sdpa: bool = True):
+    def __init__(self, in_channels: int, k: int = 8, allow_sdpa: bool = False):
         super(SelfAttention, self).__init__()
         self.emb_channels = in_channels // k
         self.allow_sdpa = allow_sdpa
@@ -93,7 +93,7 @@ class SelfAttention(nn.Module):
             v = self.value(x).view(batch_size, -1, N)                         # Value: (B, C', N)
 
             # (B, N, C') * (B, C', N) => (B, N, N): N x N Attention Map 생성 
-            s = torch.bmm(q, k)
+            s = torch.bmm(q, k) / (self.emb_channels ** 0.5)
             beta = self.softmax(s)
 
             # Value에 Attention 적용 (V * Attention_Map^T)

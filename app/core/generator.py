@@ -78,7 +78,7 @@ class Generator(nn.Module):
             nn.ReLU(inplace=True),
 
             # 16x16 해상도 지점에서 Self-Attention 적용 
-            SelfAttention(in_channels=g_conv_dim * 2),
+            SelfAttention(in_channels=g_conv_dim * 2, allow_sdpa=True),
 
             # 입력: (128, 16, 16)
             # 출력: (64, 32, 32)
@@ -87,7 +87,7 @@ class Generator(nn.Module):
             nn.ReLU(inplace=True),
 
             # 32x32 해상도 지점에서 Self-Attention 적용 
-            SelfAttention(in_channels=g_conv_dim),
+            SelfAttention(in_channels=g_conv_dim, allow_sdpa=True),
 
             # 입력: (64, 32, 32)
             # 출력: (32, 64, 64)
