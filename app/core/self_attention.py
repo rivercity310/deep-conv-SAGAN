@@ -63,7 +63,6 @@ class SelfAttention(nn.Module):
             x: 직전 Convolution Layer를 통과한 feature map (batch_size, channel, width, height)
         
         returns:
-            o: self attention output (batch_size, channel, width, height)
             y: residual connection
         """
         # C는 in_channels, C'는 emb_channels를 나타냄 
@@ -91,4 +90,4 @@ class SelfAttention(nn.Module):
         # 학습 초기(gamma가 0에 가까울 때)는 기존 Convolution 결과(x)만 사용하다가 
         # 점차 모델이 gamma 값을 키워가면서 Attention 값을 반영함 
         y = self.gamma * o + x 
-        return y, o
+        return y

@@ -39,15 +39,13 @@ class SAGANDataset(Dataset):
     def __getitem__(self, idx):
         img_path = os.path.join(self.root_dir, self.image_files[idx])
         image = Image.open(img_path).convert("RGB")
-
-        if self.transform:
-            image = self.transform(image)
+        image = self.transform(image)
         
         # GAN 학습시 레이블은 보통 필요 없으므로 0 고정 반환 
         return image, 0     
     
 
-def get_dataloader(root_dir, batch_size, image_size=256, num_workers=4):
+def get_dataloader(root_dir, batch_size, image_size=256):
     """
     DataLoader를 생성하여 반환하는 헬퍼 함수 
     """
@@ -57,6 +55,5 @@ def get_dataloader(root_dir, batch_size, image_size=256, num_workers=4):
         dataset=dataset,
         batch_size=batch_size,
         shuffle=True,             # 매 에폭마다 순서 섞기 
-        num_workers=num_workers,  # 병렬 데이터 로딩
         pin_memory=True           # GPU 전송 속도 향상 
     )

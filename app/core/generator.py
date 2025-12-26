@@ -1,6 +1,6 @@
 import torch.nn as nn 
 from torch.nn.utils import spectral_norm
-from self_attention import SelfAttention
+from app.core.self_attention import SelfAttention
 
 
 class Generator(nn.Module):
@@ -51,7 +51,7 @@ class Generator(nn.Module):
             즉, 다양성 확보 측면에서 유리함.
     """
 
-    def __init__(self, latent_dim: int):
+    def __init__(self, latent_dim: int, g_conv_dim: int = 64):
         """
         latent_dim: 잠재공간의 차원 수, 즉 n개의 추상적인 지표 (압축된 정보)
         초기 latent_dim 잠재공간이 ConvTranspose2d를 거치며 점점 커짐
@@ -61,49 +61,49 @@ class Generator(nn.Module):
         self.model = nn.Sequential(
             # 입력: (latent_dim, 1, 1)
             # 출력: (512, 4, 4)
-            spectral_norm(nn.ConvTranspose2d(in_channels=latent_dim, out_channels=512, kernel_size=4,
+            spectral_norm(nn.ConvTranspose2d(in_channels=latent_dim, out_channels=g_conv_dim * 8, kernel_size=4,
                                              stride=1, padding=0, bias=False)),
             nn.ReLU(inplace=True),
 
             # 입력: (512, 4, 4)
             # 출력: (256, 8, 8)
-            spectral_norm(nn.ConvTranspose2d(in_channels=512, out_channels=256, kernel_size=4, stride=2,
+            spectral_norm(nn.ConvTranspose2d(in_channels=g_conv_dim * 8, out_channels=g_conv_dim * 4, kernel_size=4, stride=2,
                                              padding=1, bias=False)),
             nn.ReLU(inplace=True),
 
             # 입력: (256, 8, 8)
             # 출력: (128, 16, 16)
-            spectral_norm(nn.ConvTranspose2d(in_channels=256, out_channels=128, kernel_size=4, stride=2,
+            spectral_norm(nn.ConvTranspose2d(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 2, kernel_size=4, stride=2,
                                              padding=1, bias=False)),
             nn.ReLU(inplace=True),
 
             # 16x16 해상도 지점에서 Self-Attention 적용 
-            SelfAttention(in_channels=128),
+            SelfAttention(in_channels=g_conv_dim * 2),
 
             # 입력: (128, 16, 16)
             # 출력: (64, 32, 32)
-            spectral_norm(nn.ConvTranspose2d(in_channels=128, out_channels=64, kernel_size=4, stride=2,
+            spectral_norm(nn.ConvTranspose2d(in_channels=g_conv_dim * 2, out_channels=g_conv_dim, kernel_size=4, stride=2,
                                              padding=1, bias=False)),
             nn.ReLU(inplace=True),
 
             # 32x32 해상도 지점에서 Self-Attention 적용 
-            SelfAttention(in_channels=64),
+            SelfAttention(in_channels=g_conv_dim),
 
             # 입력: (64, 32, 32)
             # 출력: (32, 64, 64)
-            spectral_norm(nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=4, stride=2,
+            spectral_norm(nn.ConvTranspose2d(in_channels=g_conv_dim, out_channels=g_conv_dim // 2, kernel_size=4, stride=2,
                                              padding=1, bias=False)),
             nn.ReLU(inplace=True),
 
             # 입력: (32, 64, 64)
             # 출력: (16, 128, 128)
-            spectral_norm(nn.ConvTranspose2d(in_channels=32, out_channels=16, kernel_size=4, stride=2,
+            spectral_norm(nn.ConvTranspose2d(in_channels=g_conv_dim // 2, out_channels=g_conv_dim // 4, kernel_size=4, stride=2,
                                              padding=1, bias=False)),
             nn.ReLU(inplace=True),
 
             # 입력: (16, 128, 128)
             # 출력: (3, 256, 256)
-            spectral_norm(nn.ConvTranspose2d(in_channels=16, out_channels=3, kernel_size=4, stride=2,
+            spectral_norm(nn.ConvTranspose2d(in_channels=g_conv_dim // 4, out_channels=3, kernel_size=4, stride=2,
                                              padding=1, bias=False)),
             nn.Tanh()
         )
