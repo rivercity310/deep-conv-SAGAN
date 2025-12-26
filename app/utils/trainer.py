@@ -55,8 +55,11 @@ class SAGANTrainer:
                 self.d_opt.zero_grad()
 
                 # 진짜 이미지 손실 (Hinge Loss)
+                # - 판별자에 Label Smoothing 적용 (무조건 100% 가짜라고 확신하지 못하게 함)
+                # - 훈련과정에서 D_LOSS가 0.0에 수렴하여 판별자가 완벽하게 구분한다면 생성자 입장에서는 기울기(Gradient)를 전혀 받지 못함.
+                # - 따라서 아무리 학습을 해도 실력이 늘지 않는 기울기 소실(Gradient Vanishing) 상태에 빠짐.
                 d_out_real = self.d(real_imgs)
-                d_loss_real = nn.ReLU()(1.0 - d_out_real).mean()
+                d_loss_real = nn.ReLU()(0.9 - d_out_real).mean()
 
                 # 가짜 이미지 손실 
                 z = torch.randn(b_size, self.latent_dim).to(self.device)
@@ -65,8 +68,11 @@ class SAGANTrainer:
                 d_loss_fake = nn.ReLU()(1.0 + d_out_fake).mean()
 
                 d_loss = d_loss_real + d_loss_fake 
-                d_loss.backward()
-                self.d_opt.step()
+
+                # D_LOSS가 0보다 큰 경우에만 업데이트 적용 (판별자 힘뺴기)
+                if d_loss.item() > 0.001:
+                    d_loss.backward()
+                    self.d_opt.step()
 
                 # ============ 생성자 학습 ==============
                 # D_LOSS = 0 문제(판별자 승리 문제) 해결을 위해 2번씩 생성자 훈련  

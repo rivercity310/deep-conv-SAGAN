@@ -1,4 +1,5 @@
 import yaml
+import torch.nn as nn
 from pathlib import Path
 from app.utils.dataset import get_dataloader
 from app.utils.trainer import SAGANTrainer
@@ -35,9 +36,28 @@ dataloader = get_dataloader(
     image_size=IMAGE_SIZE
 )
 
+
+# 가중치 초기화 함수 
+def weights_init(m):
+    """
+    훈련을 시작하는 출발점을 정하기 위해 모델의 초기 가중치 세팅.
+    """
+
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        nn.init.constant_(m.bias.data, 0)
+    # Self-Attention의 gamma 파라미터는 명시적으로 0으로 시작하는지 확인
+    elif classname.find('SelfAttention') != -1:
+        nn.init.constant_(m.gamma.data, 0)
+
 # 모델 
 generator = Generator(latent_dim=LATENT_DIM, g_conv_dim=G_CONV_DIM)
+generator.apply(weights_init)
 discriminator = Discriminator(d_conv_dim=D_CONV_DIM)
+discriminator.apply(weights_init)
 
 # 트레이너 실행 
 trainer = SAGANTrainer(
