@@ -76,7 +76,7 @@ class SAGANTrainer:
 
                 # ============ 생성자 학습 ==============
                 # D_LOSS = 0 문제(판별자 승리 문제) 해결을 위해 2번씩 생성자 훈련  
-                for _ in range(2):
+                for _ in range(3):
                     self.g_opt.zero_grad()
 
                     # 가짜 이미지를 판별자가 진짜로 믿게 만들기 
@@ -115,6 +115,7 @@ class SAGANTrainer:
     
     def save_samples(self, epoch):
         sample_dir = os.path.abspath(os.path.join(os.getcwd(), self.sample_dir))
+        self.g.eval()
 
         with torch.no_grad():
             z = torch.randn(32, self.latent_dim).to(self.device)
@@ -128,6 +129,8 @@ class SAGANTrainer:
             
             sample_img_path = os.path.join(sample_dir, f"epoch_{epoch + 1}.png")
             save_image(samples, sample_img_path, nrow=8)
+
+        self.g.train()
     
     def save_checkpoint(self, epoch):
         """
@@ -157,4 +160,5 @@ class SAGANTrainer:
         for name, param in model.named_parameters():
             if "gamma" in name:
                 gammas.append(param.item())
+                
         return gammas
