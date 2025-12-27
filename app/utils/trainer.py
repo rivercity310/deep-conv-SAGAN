@@ -53,6 +53,9 @@ class SAGANTrainer:
                 b_size = real_imgs.size(0)
                 sample_dir = os.path.abspath(os.path.join(os.getcwd(), self.sample_dir))
 
+                if not os.path.exists(sample_dir):
+                    os.mkdir(sample_dir)
+
                 if i == 0: # 에포크 첫 번째 배치만 확인
                     real_sample_path = os.path.join(sample_dir, f"real_epoch_{epoch + 1}.png")
                     # 실제 데이터셋 이미지를 저장해서 눈으로 확인
@@ -74,14 +77,19 @@ class SAGANTrainer:
                 d_out_fake = self.d(fake_imgs.detach())
                 d_loss_fake = nn.ReLU()(1.0 + d_out_fake).mean()
 
-                d_loss = (d_loss_real + d_loss_fake) / 2
+                d_loss = (d_loss_real + d_loss_fake)
 
                 d_loss.backward()
                 self.d_opt.step()
 
                 # ============ 생성자 학습 ==============
                 # D_LOSS = 0 문제(판별자 승리 문제) 해결을 위해 n번씩 생성자 훈련  
-                for _ in range(2):
+                if d_loss.item() < 0.5:
+                    update_cnt = 2
+                else:
+                    update_cnt = 1
+
+                for _ in range(update_cnt):
                     self.g_opt.zero_grad()
 
                     # 가짜 이미지를 판별자가 진짜로 믿게 만들기 
@@ -97,7 +105,8 @@ class SAGANTrainer:
                 # tqdm 진행바 오른쪽에 실시간 Loss 값 표시 
                 progress_bar.set_postfix({
                     "D_LOSS": f"{d_loss.item():.4f}",
-                    "G_LOSS": f"{g_loss.item():.4f}"
+                    "G_LOSS": f"{g_loss.item():.4f}",
+                    "G_UPDATE_CNT": update_cnt
                 })
             
             # 고정 노이즈 이미지 생성 

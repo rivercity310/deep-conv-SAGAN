@@ -26,6 +26,9 @@ class Discriminator(nn.Module):
                                     padding=1, bias=False)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
+            # 64x64 지점에서 Self-Attention 적용 
+            SelfAttention(in_channels=d_conv_dim, allow_sdpa=True),
+
             # 입력: (64, 64, 64)
             # 출력: (128, 32, 32)
             spectral_norm(nn.Conv2d(in_channels=d_conv_dim, out_channels=d_conv_dim * 2, kernel_size=4, stride=2,
@@ -33,7 +36,7 @@ class Discriminator(nn.Module):
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
             # 32x32 지점에서 Self-Attention 적용 
-            SelfAttention(in_channels=d_conv_dim * 2, allow_sdpa=True),
+            # SelfAttention(in_channels=d_conv_dim * 2, allow_sdpa=False),
 
             # 입력: (128, 32, 32)
             # 출력: (256, 16, 16)
@@ -60,7 +63,7 @@ class Discriminator(nn.Module):
             # 4 x 4 크기를 1 x 1로 완전히 수렴시키는 커널 사용 
             # -> 이미지 전체 영역을 아우르는 하나의 커널이 마지막 판정 -> 전역적인 정보를 하나로 응축 
             nn.Conv2d(in_channels=d_conv_dim * 16, out_channels=1, kernel_size=4, stride=1, 
-                      padding=0, bias=False)
+                      padding=0, bias=True)
 
             # Hinge Loss를 사용할 때 선형 출력을 위해 마지막 판정(최종) 레이어에는 SN 적용 X
         )
