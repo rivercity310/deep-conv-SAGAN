@@ -51,6 +51,12 @@ class SAGANTrainer:
             for i, (real_imgs, _) in progress_bar:
                 real_imgs = real_imgs.to(self.device)
                 b_size = real_imgs.size(0)
+                sample_dir = os.path.abspath(os.path.join(os.getcwd(), self.sample_dir))
+
+                if i == 0: # 에포크 첫 번째 배치만 확인
+                    real_sample_path = os.path.join(sample_dir, f"real_epoch_{epoch + 1}.png")
+                    # 실제 데이터셋 이미지를 저장해서 눈으로 확인
+                    save_image(real_imgs[:32], real_sample_path, normalize=True, value_range=(-1, 1))
 
                 # ============ 판별자 학습 =============
                 self.d_opt.zero_grad()
@@ -60,7 +66,7 @@ class SAGANTrainer:
                 # - 훈련과정에서 D_LOSS가 0.0에 수렴하여 판별자가 완벽하게 구분한다면 생성자 입장에서는 기울기(Gradient)를 전혀 받지 못함.
                 # - 따라서 아무리 학습을 해도 실력이 늘지 않는 기울기 소실(Gradient Vanishing) 상태에 빠짐.
                 d_out_real = self.d(real_imgs)
-                d_loss_real = nn.ReLU()(0.9 - d_out_real).mean()
+                d_loss_real = nn.ReLU()(1.0 - d_out_real).mean()
 
                 # 가짜 이미지 손실 
                 z = torch.randn(b_size, self.latent_dim).to(self.device)
@@ -68,16 +74,14 @@ class SAGANTrainer:
                 d_out_fake = self.d(fake_imgs.detach())
                 d_loss_fake = nn.ReLU()(1.0 + d_out_fake).mean()
 
-                d_loss = d_loss_real + d_loss_fake 
+                d_loss = (d_loss_real + d_loss_fake) / 2
 
-                # D_LOSS가 0보다 큰 경우에만 업데이트 적용 (판별자 힘뺴기)
-                if d_loss.item() > 0.001:
-                    d_loss.backward()
-                    self.d_opt.step()
+                d_loss.backward()
+                self.d_opt.step()
 
                 # ============ 생성자 학습 ==============
-                # D_LOSS = 0 문제(판별자 승리 문제) 해결을 위해 2번씩 생성자 훈련  
-                for _ in range(3):
+                # D_LOSS = 0 문제(판별자 승리 문제) 해결을 위해 n번씩 생성자 훈련  
+                for _ in range(2):
                     self.g_opt.zero_grad()
 
                     # 가짜 이미지를 판별자가 진짜로 믿게 만들기 
@@ -97,9 +101,8 @@ class SAGANTrainer:
                 })
             
             # 고정 노이즈 이미지 생성 
-            sample_dir = os.path.abspath(os.path.join(os.getcwd(), self.sample_dir))
-            fixed_noise_path = os.path.join(sample_dir, f"fixed_noise_{epoch}.png")
-            random_noise_path = os.path.join(sample_dir, f"random_noise_{epoch}.png")
+            fixed_noise_path = os.path.join(sample_dir, f"fixed_noise_{epoch + 1}.png")
+            random_noise_path = os.path.join(sample_dir, f"random_noise_{epoch + 1}.png")
 
             self.g.eval()
             with torch.no_grad():
@@ -115,6 +118,9 @@ class SAGANTrainer:
 
             if (epoch + 1) % self.checkpoint_step == 0:
                 self.save_checkpoint(epoch)
+
+            print(f"Gamma-G {self.get_gamma_values(self.g)}")
+            print(f"Gamma-D {self.get_gamma_values(self.d)}")
 
     def load_checkpoint(self, path):
         """저장된 체크포인트로부터 학습 재개"""
@@ -149,7 +155,7 @@ class SAGANTrainer:
 
         path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch + 1}.pth")
         torch.save(state, path)
-        print(f"Epoch {epoch} - Checkpoint Saved: {path}")
+        print(f"Epoch {epoch + 1} - Checkpoint Saved: {path}")
 
     def get_gamma_values(self, model):
         gammas = []

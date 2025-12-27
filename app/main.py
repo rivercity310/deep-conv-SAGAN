@@ -42,16 +42,16 @@ def weights_init(m):
     """
     훈련을 시작하는 출발점을 정하기 위해 모델의 초기 가중치 세팅.
     """
-
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
-        nn.init.normal_(m.weight.data, 0.0, 0.02)
+        # SN이 적용된 경우 weight_orig를 초기화해야 함
+        if hasattr(m, 'weight_orig'):
+            nn.init.orthogonal_(m.weight_orig.data, 1.0)
+        else:
+            nn.init.orthogonal_(m.weight.data, 1.0)
     elif classname.find('BatchNorm') != -1:
-        nn.init.normal_(m.weight.data, 1.0, 0.02)
-        nn.init.constant_(m.bias.data, 0)
-    # Self-Attention의 gamma 파라미터는 명시적으로 0으로 시작하는지 확인
-    elif classname.find('SelfAttention') != -1:
-        nn.init.constant_(m.gamma.data, 0)
+        nn.init.constant_(m.weight.data, 1.0)
+        nn.init.constant_(m.bias.data, 0.0)
 
 # 모델 
 generator = Generator(latent_dim=LATENT_DIM, g_conv_dim=G_CONV_DIM)

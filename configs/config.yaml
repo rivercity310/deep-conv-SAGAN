@@ -1,16 +1,16 @@
 project_name: "Wedding-SAGAN"
 
 model:
-  latent_dim: 128
+  latent_dim: 256
   image_size: 128
   g_conv_dim: 64
   d_conv_dim: 64
 
 train:
   epochs: 500
-  batch_size: 128
+  batch_size: 64
   lr_g: 0.0001
-  lr_d: 0.0003
+  lr_d: 0.0002
   beta1: 0.0
   beta2: 0.9
   sample_step: 1

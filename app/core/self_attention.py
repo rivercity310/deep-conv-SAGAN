@@ -56,7 +56,7 @@ class SelfAttention(nn.Module):
         self.query = nn.Conv2d(in_channels=in_channels, out_channels=self.emb_channels, kernel_size=1)
         self.value = nn.Conv2d(in_channels=in_channels, out_channels=self.emb_channels, kernel_size=1)
         self.self_att = nn.Conv2d(in_channels=self.emb_channels, out_channels=in_channels, kernel_size=1)
-        self.gamma = nn.Parameter(torch.zeros(1))
+        self.gamma = nn.Parameter(torch.tensor(0.0))
         self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x):
