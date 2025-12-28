@@ -90,9 +90,6 @@ class Generator(nn.Module):
             nn.BatchNorm2d(num_features=g_conv_dim * 2),
             nn.ReLU(inplace=True),
 
-            # 32x32 해상도 지점에서 Self-Attention 적용 
-            # SelfAttention(in_channels=g_conv_dim * 2, allow_sdpa=False),
-
             # 입력: (128, 32, 32)
             # 출력: (64, 64, 64)
             spectral_norm(nn.ConvTranspose2d(in_channels=g_conv_dim * 2, out_channels=g_conv_dim, kernel_size=4, stride=2,

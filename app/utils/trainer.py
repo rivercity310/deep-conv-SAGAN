@@ -43,6 +43,11 @@ class SAGANTrainer:
         self.fixed_noise = torch.randn(32, self.latent_dim, 1, 1).to(self.device)
 
     def train(self, epochs: int):
+        sample_dir = os.path.abspath(os.path.join(os.getcwd(), self.sample_dir))
+
+        if not os.path.exists(sample_dir):
+            os.mkdir(sample_dir)
+
         for epoch in range(epochs):
             progress_bar = tqdm(enumerate(self.dataloader),
                                 total=len(self.dataloader),
@@ -51,15 +56,6 @@ class SAGANTrainer:
             for i, (real_imgs, _) in progress_bar:
                 real_imgs = real_imgs.to(self.device)
                 b_size = real_imgs.size(0)
-                sample_dir = os.path.abspath(os.path.join(os.getcwd(), self.sample_dir))
-
-                if not os.path.exists(sample_dir):
-                    os.mkdir(sample_dir)
-
-                if i == 0: # 에포크 첫 번째 배치만 확인
-                    real_sample_path = os.path.join(sample_dir, f"real_epoch_{epoch + 1}.png")
-                    # 실제 데이터셋 이미지를 저장해서 눈으로 확인
-                    save_image(real_imgs[:32], real_sample_path, normalize=True, value_range=(-1, 1))
 
                 # ============ 판별자 학습 =============
                 self.d_opt.zero_grad()

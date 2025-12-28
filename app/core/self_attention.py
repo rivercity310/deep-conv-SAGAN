@@ -100,7 +100,7 @@ class SelfAttention(nn.Module):
             # (B, C', N) * (B, N, N) => (B, C', N)
             v = torch.bmm(v, beta.permute(0, 2, 1))
 
-            # v를 다시 (B, C', W, H)로 복원 
+            # v를 다시 (B, C', W, H) -> (B, C, W, H)로 복원 
             v = v.view(batch_size, -1, W, H)
             o = self.self_att(v)
 
