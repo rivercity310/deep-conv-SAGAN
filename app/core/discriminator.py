@@ -27,13 +27,15 @@ class Discriminator(nn.Module):
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
             # 64x64 지점에서 Self-Attention 적용 
-            SelfAttention(in_channels=d_conv_dim, allow_sdpa=True),
+            # SelfAttention(in_channels=d_conv_dim, allow_sdpa=True),
 
             # 입력: (64, 64, 64)
             # 출력: (128, 32, 32)
             spectral_norm(nn.Conv2d(in_channels=d_conv_dim, out_channels=d_conv_dim * 2, kernel_size=4, stride=2,
                                     padding=1, bias=False)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
+
+            SelfAttention(in_channels=d_conv_dim * 2, allow_sdpa=False),
 
             # 입력: (128, 32, 32)
             # 출력: (256, 16, 16)
@@ -42,7 +44,7 @@ class Discriminator(nn.Module):
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
             # 16x16 지점에서 Self-Attention 적용 
-            SelfAttention(in_channels=d_conv_dim * 4, allow_sdpa=True),
+            # SelfAttention(in_channels=d_conv_dim * 4, allow_sdpa=True),
 
             # 입력: (256, 16, 16)
             # 출력: (512, 8, 8)

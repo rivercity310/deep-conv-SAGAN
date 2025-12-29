@@ -126,7 +126,7 @@ class SAGANTrainer:
                 save_image(fake_img_random, random_noise_path, normalize=True, value_range=(-1, 1))
 
                 # Attention Map 시각화 
-                attn_layer = self.g.model[9]
+                attn_layer = self.g.model[12]
                 if isinstance(attn_layer, SelfAttention):
                     attn_map = attn_layer.last_attn_map[0]
                     visualize_attention_map(fake_img, attn_map, attention_heatmap_path)
