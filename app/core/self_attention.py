@@ -58,11 +58,13 @@ class SelfAttention(nn.Module):
         self.self_att = nn.Conv2d(in_channels=self.emb_channels, out_channels=in_channels, kernel_size=1)
         self.gamma = nn.Parameter(torch.tensor(0.0))
         self.softmax = nn.Softmax(dim=-1)
+        self.last_attn_map = None
 
-    def forward(self, x):
+    def forward(self, x, return_attn=False):
         """
         inputs:
             x: 직전 Convolution Layer를 통과한 feature map (batch_size, channel, width, height)
+            return_attn: Attention Map 반환 여부 (시각화를 위해)
         
         returns:
             y: residual connection
@@ -71,7 +73,26 @@ class SelfAttention(nn.Module):
         batch_size, C, W, H = x.size()
         N = W * H                                                           # 총 Feature 개수
 
-        if self.allow_sdpa:
+        if not self.allow_sdpa or return_attn:
+            # Flatten 작업: (B, C, W, H) -> (B, C, N)
+            q = self.query(x).view(batch_size, -1, N).permute(0, 2, 1)        # Query: (B, N, C')
+            k = self.key(x).view(batch_size, -1, N)                           # Key: (B, C', N)
+            v = self.value(x).view(batch_size, -1, N)                         # Value: (B, C', N)
+
+            # (B, N, C') * (B, C', N) => (B, N, N): N x N Attention Map 생성 
+            s = torch.bmm(q, k) / (self.emb_channels ** 0.5)
+            beta = self.softmax(s)
+            self.last_attn_map = beta.detach().cpu()
+
+            # Value에 Attention 적용 (V * Attention_Map^T)
+            # (B, C', N) * (B, N, N) => (B, C', N)
+            v = torch.bmm(v, beta.permute(0, 2, 1))
+
+            # v를 다시 (B, C', W, H) -> (B, C, W, H)로 복원 
+            v = v.view(batch_size, -1, W, H)
+            o = self.self_att(v)
+
+        else:
             # Q, K, V 생성 및 SDPA 형식으로 변환 (L = N, E = emb_channels)
             # SDPA 기대 형식: (B, H< L< E) -> 여기서 헤드(H)는 1로 설정 
             q = self.query(x).view(batch_size, self.emb_channels, N).permute(0, 2, 1).unsqueeze(1)    
@@ -85,24 +106,6 @@ class SelfAttention(nn.Module):
             # 다시 (B, C', W, H)로 복원 
             o = attn_out.squeeze(1).permute(0, 2, 1).view(batch_size, self.emb_channels, W, H)
             o = self.self_att(o)
-
-        else:
-            # Flatten 작업: (B, C, W, H) -> (B, C, N)
-            q = self.query(x).view(batch_size, -1, N).permute(0, 2, 1)        # Query: (B, N, C')
-            k = self.key(x).view(batch_size, -1, N)                           # Key: (B, C', N)
-            v = self.value(x).view(batch_size, -1, N)                         # Value: (B, C', N)
-
-            # (B, N, C') * (B, C', N) => (B, N, N): N x N Attention Map 생성 
-            s = torch.bmm(q, k) / (self.emb_channels ** 0.5)
-            beta = self.softmax(s)
-
-            # Value에 Attention 적용 (V * Attention_Map^T)
-            # (B, C', N) * (B, N, N) => (B, C', N)
-            v = torch.bmm(v, beta.permute(0, 2, 1))
-
-            # v를 다시 (B, C', W, H) -> (B, C, W, H)로 복원 
-            v = v.view(batch_size, -1, W, H)
-            o = self.self_att(v)
 
         # 잔차 연결(Residual Connection) 적용 -> 처음부터 어텐션을 강하게 사용하면 학습이 망가짐 
         # 학습 초기(gamma가 0에 가까울 때)는 기존 Convolution 결과(x)만 사용하다가 

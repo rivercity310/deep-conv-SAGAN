@@ -4,6 +4,10 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision.utils import save_image
 from tqdm import tqdm
+from app.core.generator import Generator
+from app.core.discriminator import Discriminator
+from app.core.self_attention import SelfAttention
+from app.utils.visualize import visualize_attention_map
 
 
 class SAGANTrainer:
@@ -16,7 +20,7 @@ class SAGANTrainer:
     판별자의 가짜 이미지에 대한 loss를 계산할 때, detach를 적용한 이유는 판별자 학습시 생성자의 가중치까지 미분값이 흐르지 않게 하기 위함.
     """
 
-    def __init__(self, generator, discriminator, dataloader, config):
+    def __init__(self, generator: Generator, discriminator: Discriminator, dataloader, config):
         # 상수 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -108,6 +112,7 @@ class SAGANTrainer:
             # 고정 노이즈 이미지 생성 
             fixed_noise_path = os.path.join(sample_dir, f"fixed_noise_{epoch + 1}.png")
             random_noise_path = os.path.join(sample_dir, f"random_noise_{epoch + 1}.png")
+            attention_heatmap_path = os.path.join(sample_dir, f"attention_heatmap_{epoch + 1}.png")
 
             self.g.eval()
             with torch.no_grad():
@@ -119,6 +124,12 @@ class SAGANTrainer:
                 z = torch.randn(32, self.latent_dim).to(self.device)
                 fake_img_random = self.g(z).detach().cpu()
                 save_image(fake_img_random, random_noise_path, normalize=True, value_range=(-1, 1))
+
+                # Attention Map 시각화 
+                attn_layer = self.g.model[9]
+                if isinstance(attn_layer, SelfAttention):
+                    attn_map = attn_layer.last_attn_map[0]
+                    visualize_attention_map(fake_img, attn_map, attention_heatmap_path)
             self.g.train()
 
             if (epoch + 1) % self.checkpoint_step == 0:
