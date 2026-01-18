@@ -96,9 +96,16 @@ class Generator(nn.Module):
         # --- 
         # (latent_dim, 1, 1) -> (1024, 4, 4)
         self.initial = nn.Sequential(
-            spectral_norm(nn.ConvTranspose2d(in_channels=latent_dim, out_channels=g_conv_dim * 16, kernel_size=4, stride=1, padding=0, bias=False)),
-            nn.BatchNorm2d(g_conv_dim * 16),
-            nn.ReLU(inplace=True)
+            spectral_norm(nn.Linear(in_features=latent_dim, out_features=512, bias=False)),
+            nn.BatchNorm1d(num_features=512),
+            nn.ReLU(inplace=True),
+
+            spectral_norm(nn.Linear(in_features=512, out_features=1024 * 4 * 4, bias=False)),
+            nn.BatchNorm1d(num_features=1024 * 4 * 4),
+            nn.ReLU(inplace=True),
+
+            # Unflatten 추가: (Batch, 1024*4*4) -> (Batch, 1024, 4, 4)
+            nn.Unflatten(dim=1, unflattened_size=(g_conv_dim * 16, 4, 4))
         )
 
         # (1024, 4, 4) -> (512, 8, 8)
@@ -110,13 +117,13 @@ class Generator(nn.Module):
         # (512, 8, 8) -> (256, 16, 16)
         self.layer2 = nn.Sequential(
             nn.ConvTranspose2d(in_channels=g_conv_dim * 8, out_channels=g_conv_dim * 4, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
+            SelfAttention(in_channels=g_conv_dim * 4),
             GenBottleneckBlock(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 4)
         )
 
         # (256, 16, 16) -> (128, 32, 32)
         self.layer3 = nn.Sequential(
             nn.ConvTranspose2d(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 2, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
-            SelfAttention(in_channels=g_conv_dim * 2),
             GenBottleneckBlock(in_channels=g_conv_dim * 2, out_channels=g_conv_dim * 2)
         )
 
@@ -137,7 +144,6 @@ class Generator(nn.Module):
         inputs:
             z: (batch, latent_dim) -> (batch, latent_dim, 1, 1)
         """
-        z = z.view(z.size(0), z.size(1), 1, 1)
         x = self.initial(z)
         x = self.layer1(x)
         x = self.layer2(x)

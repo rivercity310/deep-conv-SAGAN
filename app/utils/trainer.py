@@ -44,7 +44,7 @@ class SAGANTrainer:
         self.g_opt = optim.Adam(params=self.g.parameters(), lr=TRAIN["lr_g"], betas=betas)
         self.d_opt = optim.Adam(params=self.d.parameters(), lr=TRAIN["lr_d"], betas=betas)
 
-        self.fixed_noise = torch.randn(32, self.latent_dim, 1, 1).to(self.device)
+        self.fixed_noise = torch.randn(32, self.latent_dim).to(self.device)
 
     def train(self, epochs: int):
         sample_dir = os.path.abspath(os.path.join(os.getcwd(), self.sample_dir))
@@ -130,7 +130,7 @@ class SAGANTrainer:
 
             # 매 애폭 종료 후 Loss 기록 및 그래프 업데이트 
             avg_d = d_running_loss / len(self.dataloader)
-            avg_g = d_running_loss / len(self.dataloader)
+            avg_g = g_running_loss / len(self.dataloader)
             self.history["d_loss"].append(avg_d)
             self.history["g_loss"].append(avg_g)
 

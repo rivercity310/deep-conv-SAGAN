@@ -59,7 +59,8 @@ class Discriminator(nn.Module):
 
         # (128, 32, 32) -> (256, 16, 16)
         self.layer3 = nn.Sequential(
-            DiscBottleneckBlock(in_channels=d_conv_dim * 2, out_channels=d_conv_dim * 4, stride=2)
+            DiscBottleneckBlock(in_channels=d_conv_dim * 2, out_channels=d_conv_dim * 4, stride=2),
+            SelfAttention(in_channels=d_conv_dim * 4)
         )
 
         # (256, 16, 16) -> (512, 8, 8)
@@ -74,7 +75,12 @@ class Discriminator(nn.Module):
 
         # Hinge Loss를 사용할 때 선형 출력을 위해 마지막 판정(최종) 레이어에는 SN 적용 X
         # (1024, 4, 4) -> (1, 1, 1) 확률값
-        self.final = nn.Conv2d(in_channels=d_conv_dim * 16, out_channels=1, kernel_size=4, stride=1, padding=0, bias=False)  
+        self.final = nn.Sequential(
+            nn.Flatten(),    # (Batch, 1024 * 4 * 4)
+            spectral_norm(nn.Linear(in_features=d_conv_dim * 16 * 4 * 4, out_features=512)),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Linear(in_features=512, out_features=1)
+        )
 
     def forward(self, x):
         """

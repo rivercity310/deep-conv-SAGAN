@@ -3,3 +3,4 @@ checkpoints/**
 data/**
 **/__pycache__
 samples_resblock/**
+samples_resblock2/**
