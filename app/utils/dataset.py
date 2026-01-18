@@ -1,16 +1,6 @@
 import os
-from PIL import Image
 from torch.utils.data import DataLoader
 from torchvision import transforms, datasets
-
-
-def rgb_loader(path):
-    """
-    이미지를 읽어와서 무조건 3채널 RGB로 변환 
-    """
-    with open(path, "rb") as f:
-        img = Image.open(f)
-        return img.convert("RGB")
 
 
 def get_dataloader(root_dir, batch_size, image_size):
@@ -41,6 +31,6 @@ def get_dataloader(root_dir, batch_size, image_size):
         dataset=dataset,
         batch_size=batch_size,
         shuffle=True,              # 매 에폭마다 순서 섞기 
-        pin_memory=True,           # GPU 전송 속도 향상,
+        pin_memory=True,           # GPU 전송 속도 향상
         drop_last=True
     )

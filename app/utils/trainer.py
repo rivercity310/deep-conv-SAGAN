@@ -2,12 +2,11 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import matplotlib.pyplot as plt
 from torchvision.utils import save_image
 from tqdm import tqdm
-from app.core.generator import Generator
-from app.core.discriminator import Discriminator
-from app.core.self_attention import SelfAttention
-from app.utils.visualize import visualize_attention_map
+from app.core.v1.generator import Generator
+from app.core.v1.discriminator import Discriminator
 
 
 class SAGANTrainer:
@@ -22,6 +21,7 @@ class SAGANTrainer:
 
     def __init__(self, generator: Generator, discriminator: Discriminator, dataloader, config):
         # 상수 
+        self.history = {"d_loss": [], "g_loss": []}
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         TRAIN = config["train"]
@@ -53,6 +53,8 @@ class SAGANTrainer:
             os.mkdir(sample_dir)
 
         for epoch in range(epochs):
+            d_running_loss = 0.0
+            g_running_loss = 0.0
             progress_bar = tqdm(enumerate(self.dataloader),
                                 total=len(self.dataloader),
                                 desc=f"Epoch [{epoch + 1} / {epochs}]")
@@ -77,42 +79,38 @@ class SAGANTrainer:
                 d_out_fake = self.d(fake_imgs.detach())
                 d_loss_fake = nn.ReLU()(1.0 + d_out_fake).mean()
 
-                d_loss = (d_loss_real + d_loss_fake)
+                d_loss = (d_loss_real + d_loss_fake) / 2
 
                 d_loss.backward()
                 self.d_opt.step()
 
+                d_running_loss += d_loss.item()
+
                 # ============ 생성자 학습 ==============
                 # D_LOSS = 0 문제(판별자 승리 문제) 해결을 위해 n번씩 생성자 훈련  
-                if d_loss.item() < 0.5:
-                    update_cnt = 2
-                else:
-                    update_cnt = 1
+                self.g_opt.zero_grad()
 
-                for _ in range(update_cnt):
-                    self.g_opt.zero_grad()
+                # 가짜 이미지를 판별자가 진짜로 믿게 만들기 
+                z = torch.randn(b_size, self.latent_dim).to(self.device)
+                fake_imgs_new = self.g(z)
 
-                    # 가짜 이미지를 판별자가 진짜로 믿게 만들기 
-                    z = torch.randn(b_size, self.latent_dim).to(self.device)
-                    fake_imgs_new = self.g(z)
+                g_out_fake = self.d(fake_imgs_new)
+                g_loss = -g_out_fake.mean()
 
-                    g_out_fake = self.d(fake_imgs_new)
-                    g_loss = -g_out_fake.mean()
+                g_loss.backward()
+                self.g_opt.step()
 
-                    g_loss.backward()
-                    self.g_opt.step()
+                g_running_loss += g_loss.item()
 
                 # tqdm 진행바 오른쪽에 실시간 Loss 값 표시 
                 progress_bar.set_postfix({
                     "D_LOSS": f"{d_loss.item():.4f}",
-                    "G_LOSS": f"{g_loss.item():.4f}",
-                    "G_UPDATE_CNT": update_cnt
+                    "G_LOSS": f"{g_loss.item():.4f}"
                 })
             
             # 고정 노이즈 이미지 생성 
             fixed_noise_path = os.path.join(sample_dir, f"fixed_noise_{epoch + 1}.png")
             random_noise_path = os.path.join(sample_dir, f"random_noise_{epoch + 1}.png")
-            attention_heatmap_path = os.path.join(sample_dir, f"attention_heatmap_{epoch + 1}.png")
 
             self.g.eval()
             with torch.no_grad():
@@ -125,18 +123,46 @@ class SAGANTrainer:
                 fake_img_random = self.g(z).detach().cpu()
                 save_image(fake_img_random, random_noise_path, normalize=True, value_range=(-1, 1))
 
-                # Attention Map 시각화 
-                attn_layer = self.g.model[12]
-                if isinstance(attn_layer, SelfAttention):
-                    attn_map = attn_layer.last_attn_map[0]
-                    visualize_attention_map(fake_img, attn_map, attention_heatmap_path)
             self.g.train()
 
             if (epoch + 1) % self.checkpoint_step == 0:
                 self.save_checkpoint(epoch)
 
-            print(f"Gamma-G {self.get_gamma_values(self.g)}")
-            print(f"Gamma-D {self.get_gamma_values(self.d)}")
+            # 매 애폭 종료 후 Loss 기록 및 그래프 업데이트 
+            avg_d = d_running_loss / len(self.dataloader)
+            avg_g = d_running_loss / len(self.dataloader)
+            self.history["d_loss"].append(avg_d)
+            self.history["g_loss"].append(avg_g)
+
+            self.save_loss_plot(epoch + 1)
+
+    def save_loss_plot(self, epoch):
+        """학습 진행 상황을 그래프로 저장"""
+        plt.figure(figsize=(10, 5))
+        plt.title(f"SAGAN Training Loss (Epoch {epoch})")
+
+        epochs_range = range(1, len(self.history["g_loss"]) + 1)
+        # Generator Loss
+        plt.plot(epochs_range, self.history["g_loss"], label="Generator Loss", color='tab:red', linewidth=2)
+        # Discriminator Loss
+        plt.plot(epochs_range, self.history["d_loss"], label="Discriminator Loss", color='tab:blue', linewidth=2)
+        plt.xlabel("Epochs")
+        plt.ylabel("Loss Value")
+        
+        # y축 로그 스케일 (G_LOSS가 너무 높을 경우를 대비 - 선택 사항)
+        # 만약 G_LOSS가 너무 커서 D_LOSS가 일직선으로 보인다면 아래 주석을 해제하세요.
+        # plt.yscale('log') 
+
+        plt.legend(loc='upper right')
+        plt.grid(True, linestyle='--', alpha=0.7)
+        
+        # x축 단위를 정수로 표시 (에폭이 적을 때 유용)
+        from matplotlib.ticker import MaxNLocator
+        plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
+
+        plot_path = os.path.join(self.sample_dir, "loss_plot.png")
+        plt.savefig(plot_path)
+        plt.close()
 
     def load_checkpoint(self, path):
         """저장된 체크포인트로부터 학습 재개"""
@@ -169,7 +195,7 @@ class SAGANTrainer:
             "gamma_d": self.get_gamma_values(self.d)
         }
 
-        path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch + 1}.pth")
+        path = os.path.join(checkpoint_dir, f"checkpoint_epoch_sa32_{epoch + 1}.pth")
         torch.save(state, path)
         print(f"Epoch {epoch + 1} - Checkpoint Saved: {path}")
 

@@ -3,8 +3,8 @@ import torch.nn as nn
 from pathlib import Path
 from app.utils.dataset import get_dataloader
 from app.utils.trainer import SAGANTrainer
-from app.core.discriminator import Discriminator
-from app.core.generator import Generator
+from app.core.v1.discriminator import Discriminator
+from app.core.v1.generator import Generator
 
 
 # 설정값 로드 
@@ -52,6 +52,7 @@ def weights_init(m):
     elif classname.find('BatchNorm') != -1:
         nn.init.constant_(m.weight.data, 1.0)
         nn.init.constant_(m.bias.data, 0.0)
+
 
 # 모델 
 generator = Generator(latent_dim=LATENT_DIM, g_conv_dim=G_CONV_DIM)

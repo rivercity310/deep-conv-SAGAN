@@ -3,6 +3,39 @@ from torch.nn.utils import spectral_norm
 from app.core.self_attention import SelfAttention
 
 
+class GenBottleneckBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, stride = 1):
+        super(GenBottleneckBlock, self).__init__()
+        mid_channels = out_channels // 4
+
+        # BottleNeck Architecture 적용
+        # 1x1(축소) -> 3x3 -> 1x1(확장)
+        self.bottleneck = nn.Sequential(
+            spectral_norm(nn.Conv2d(in_channels=in_channels, out_channels=mid_channels, kernel_size=1, bias=False)),
+            nn.BatchNorm2d(num_features=mid_channels),
+            nn.ReLU(inplace=True),
+
+            spectral_norm(nn.Conv2d(in_channels=mid_channels, out_channels=mid_channels, kernel_size=3, stride=stride, padding=1, bias=False)),
+            nn.BatchNorm2d(num_features=mid_channels),
+            nn.ReLU(inplace=True),
+
+            spectral_norm(nn.Conv2d(in_channels=mid_channels, out_channels=out_channels, kernel_size=1, bias=False)),
+            nn.BatchNorm2d(num_features=out_channels)
+        )
+         
+        # Skip Connection 적용 
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = nn.Sequential(
+                spectral_norm(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, bias=False)),
+                nn.BatchNorm2d(num_features=out_channels)
+            )
+
+    def forward(self, x):
+        x = self.bottleneck(x) + self.shortcut(x)
+        return nn.functional.relu(x, inplace=True)
+
+
 class Generator(nn.Module):
     """
     GAN 아키텍쳐에서 Generator(생성자)는 판별자(Discriminator)의 피드백을 통해 가중치 업데이트를 수행.
@@ -58,54 +91,44 @@ class Generator(nn.Module):
         """
         super(Generator, self).__init__()
 
-        self.model = nn.Sequential(
-            # 입력: (latent_dim, 1, 1)
-            # 출력: (1024, 4, 4)
-            spectral_norm(nn.ConvTranspose2d(in_channels=latent_dim, out_channels=g_conv_dim * 16, kernel_size=4, stride=1,
-                                             padding=0, bias=False)),
-            nn.BatchNorm2d(num_features=g_conv_dim * 16),
-            nn.ReLU(inplace=True),
+        # Up-Sampling
 
-            # 입력: (1024, 4, 4)
-            # 출력: (512, 8, 8)
-            spectral_norm(nn.ConvTranspose2d(in_channels=g_conv_dim * 16, out_channels=g_conv_dim * 8, kernel_size=4, stride=2,
-                                             padding=1, bias=False)),
-            nn.BatchNorm2d(num_features=g_conv_dim * 8),
-            nn.ReLU(inplace=True),
+        # --- 
+        # (latent_dim, 1, 1) -> (1024, 4, 4)
+        self.initial = nn.Sequential(
+            spectral_norm(nn.ConvTranspose2d(in_channels=latent_dim, out_channels=g_conv_dim * 16, kernel_size=4, stride=1, padding=0, bias=False)),
+            nn.BatchNorm2d(g_conv_dim * 16),
+            nn.ReLU(inplace=True)
+        )
 
-            # 입력: (512, 8, 8)
-            # 출력: (256, 16, 16)
-            spectral_norm(nn.ConvTranspose2d(in_channels=g_conv_dim * 8, out_channels=g_conv_dim * 4, kernel_size=4, stride=2,
-                                             padding=1, bias=False)),
-            nn.BatchNorm2d(num_features=g_conv_dim * 4),
-            nn.ReLU(inplace=True),
+        # (1024, 4, 4) -> (512, 8, 8)
+        self.layer1 = nn.Sequential(
+            nn.ConvTranspose2d(in_channels=g_conv_dim * 16, out_channels=g_conv_dim * 8, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
+            GenBottleneckBlock(in_channels=g_conv_dim * 8, out_channels=g_conv_dim * 8)
+        )
 
-            # 16x16 해상도 지점에서 Self-Attention 적용 
-            # SelfAttention(in_channels=g_conv_dim * 4, allow_sdpa=False),
+        # (512, 8, 8) -> (256, 16, 16)
+        self.layer2 = nn.Sequential(
+            nn.ConvTranspose2d(in_channels=g_conv_dim * 8, out_channels=g_conv_dim * 4, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
+            GenBottleneckBlock(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 4)
+        )
 
-            # 입력: (256, 16, 16)
-            # 출력: (128, 32, 32)
-            spectral_norm(nn.ConvTranspose2d(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 2, kernel_size=4, stride=2,
-                                             padding=1, bias=False)),
-            nn.BatchNorm2d(num_features=g_conv_dim * 2),
-            nn.ReLU(inplace=True),
+        # (256, 16, 16) -> (128, 32, 32)
+        self.layer3 = nn.Sequential(
+            nn.ConvTranspose2d(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 2, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
+            SelfAttention(in_channels=g_conv_dim * 2),
+            GenBottleneckBlock(in_channels=g_conv_dim * 2, out_channels=g_conv_dim * 2)
+        )
 
-            SelfAttention(in_channels=g_conv_dim * 2, allow_sdpa=False),
+        # (128, 32, 32) -> (64, 64, 64)
+        self.layer4 = nn.Sequential(
+            nn.ConvTranspose2d(in_channels=g_conv_dim * 2, out_channels=g_conv_dim, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
+            GenBottleneckBlock(in_channels=g_conv_dim, out_channels=g_conv_dim)
+        )
 
-            # 입력: (128, 32, 32)
-            # 출력: (64, 64, 64)
-            spectral_norm(nn.ConvTranspose2d(in_channels=g_conv_dim * 2, out_channels=g_conv_dim, kernel_size=4, stride=2,
-                                             padding=1, bias=False)),
-            nn.BatchNorm2d(num_features=g_conv_dim),
-            nn.ReLU(inplace=True),
-
-            # 64x64 지점에서 Self-Attention 적용 
-            # SelfAttention(in_channels=g_conv_dim, allow_sdpa=True),
-
-            # 입력: (64, 64, 64)
-            # 출력: (3, 128, 128)
-            spectral_norm(nn.ConvTranspose2d(in_channels=g_conv_dim, out_channels=3, kernel_size=4, stride=2,
-                                             padding=1, bias=False)),
+        # (64, 64, 64) -> (3, 128, 128)
+        self.final = nn.Sequential(
+            nn.ConvTranspose2d(in_channels=g_conv_dim, out_channels=3, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
             nn.Tanh()
         )
 
@@ -115,4 +138,9 @@ class Generator(nn.Module):
             z: (batch, latent_dim) -> (batch, latent_dim, 1, 1)
         """
         z = z.view(z.size(0), z.size(1), 1, 1)
-        return self.model(z)
+        x = self.initial(z)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        return self.final(x)
