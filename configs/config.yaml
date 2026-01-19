@@ -8,13 +8,16 @@ model:
 
 train:
   epochs: 10000
-  batch_size: 128
-  lr_g: 0.0020
-  lr_d: 0.0010
+  batch_size: 256
+  lr_g: 0.0001
+  lr_d: 0.0004
   beta1: 0.0
   beta2: 0.9
   sample_step: 1
   checkpoint_step: 50
+
+checkpoint:
+  path: C:\Users\h9701\Desktop\works\projects\self-attention-deep-conv-GAN\checkpoints\checkpoint_epoch_sa32_1150.pth
 
 path:
   data_dir: "./data/wedding_dataset_128"

@@ -78,10 +78,10 @@ class Discriminator(nn.Module):
         self.final = nn.Sequential(
             nn.Flatten(),    # (Batch, 1024 * 4 * 4)
 
-            spectral_norm(nn.Linear(in_features=d_conv_dim * 16 * 4 * 4, out_features=512, bias=False)),
+            spectral_norm(nn.Linear(in_features=d_conv_dim * 16 * 4 * 4, out_features=512, bias=True)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            nn.Linear(in_features=512, out_features=1, bias=False)
+            nn.Linear(in_features=512, out_features=1, bias=True)
         )
 
     def forward(self, x):

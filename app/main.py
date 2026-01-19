@@ -1,3 +1,4 @@
+import os
 import yaml
 import torch.nn as nn
 from pathlib import Path
@@ -56,9 +57,8 @@ def weights_init(m):
 
 # 모델 
 generator = Generator(latent_dim=LATENT_DIM, g_conv_dim=G_CONV_DIM)
-generator.apply(weights_init)
 discriminator = Discriminator(d_conv_dim=D_CONV_DIM)
-discriminator.apply(weights_init)
+
 
 # 트레이너 실행 
 trainer = SAGANTrainer(
@@ -68,4 +68,16 @@ trainer = SAGANTrainer(
     config=config
 )
 
-trainer.train(epochs=EPOCHS)
+# 체크포인트 설정 
+checkpoint = config["checkpoint"]
+start_epoch = 0
+
+if os.path.exists(checkpoint["path"]):
+    last_epoch = trainer.load_checkpoint(checkpoint["path"])
+    start_epoch = last_epoch + 1
+    print(f"{start_epoch} Epoch부터 학습을 재개합니다.")
+else:
+    generator.apply(weights_init)
+    discriminator.apply(weights_init)
+
+trainer.train(epochs=EPOCHS, start_epoch=start_epoch)
