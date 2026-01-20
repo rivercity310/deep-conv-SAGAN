@@ -48,7 +48,7 @@ class SelfAttention(nn.Module):
         => y_i = gamma * o_i + x_i
     """
 
-    def __init__(self, in_channels: int, k: int = 8, allow_sdpa: bool = False):
+    def __init__(self, in_channels: int, k: int = 8, allow_sdpa: bool = True):
         super(SelfAttention, self).__init__()
         self.emb_channels = in_channels // k
         self.allow_sdpa = allow_sdpa
