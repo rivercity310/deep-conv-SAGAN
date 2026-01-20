@@ -3,23 +3,18 @@ from torch.nn.utils import spectral_norm
 from app.core.self_attention import SelfAttention
 
 
-class GenBottleneckBlock(nn.Module):
+class GenResBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride = 1):
-        super(GenBottleneckBlock, self).__init__()
-        mid_channels = out_channels // 4
+        super(GenResBlock, self).__init__()
 
-        # BottleNeck Architecture 적용
-        # 1x1(축소) -> 3x3 -> 1x1(확장)
-        self.bottleneck = nn.Sequential(
-            spectral_norm(nn.Conv2d(in_channels=in_channels, out_channels=mid_channels, kernel_size=1, bias=False)),
-            nn.BatchNorm2d(num_features=mid_channels),
-            nn.ReLU(inplace=True),
+        self.conv1 = nn.Sequential(
+            spectral_norm(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, padding=1, bias=False)),
+            nn.BatchNorm2d(num_features=out_channels),
+            nn.ReLU(inplace=True)
+        )
 
-            spectral_norm(nn.Conv2d(in_channels=mid_channels, out_channels=mid_channels, kernel_size=3, stride=stride, padding=1, bias=False)),
-            nn.BatchNorm2d(num_features=mid_channels),
-            nn.ReLU(inplace=True),
-
-            spectral_norm(nn.Conv2d(in_channels=mid_channels, out_channels=out_channels, kernel_size=1, bias=False)),
+        self.conv2 = nn.Sequential(
+            spectral_norm(nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1, bias=False)),
             nn.BatchNorm2d(num_features=out_channels)
         )
          
@@ -32,8 +27,10 @@ class GenBottleneckBlock(nn.Module):
             )
 
     def forward(self, x):
-        x = self.bottleneck(x) + self.shortcut(x)
-        return nn.functional.relu(x, inplace=True)
+        out = self.conv1(x)
+        out = self.conv2(out)
+        out += self.shortcut(x)
+        return nn.functional.relu(out, inplace=True)
 
 
 class Generator(nn.Module):
@@ -111,26 +108,26 @@ class Generator(nn.Module):
         # (1024, 4, 4) -> (512, 8, 8)
         self.layer1 = nn.Sequential(
             nn.ConvTranspose2d(in_channels=g_conv_dim * 16, out_channels=g_conv_dim * 8, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
-            GenBottleneckBlock(in_channels=g_conv_dim * 8, out_channels=g_conv_dim * 8)
+            GenResBlock(in_channels=g_conv_dim * 8, out_channels=g_conv_dim * 8)
         )
 
         # (512, 8, 8) -> (256, 16, 16)
         self.layer2 = nn.Sequential(
             nn.ConvTranspose2d(in_channels=g_conv_dim * 8, out_channels=g_conv_dim * 4, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
             SelfAttention(in_channels=g_conv_dim * 4),
-            GenBottleneckBlock(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 4)
+            GenResBlock(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 4)
         )
 
         # (256, 16, 16) -> (128, 32, 32)
         self.layer3 = nn.Sequential(
             nn.ConvTranspose2d(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 2, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
-            GenBottleneckBlock(in_channels=g_conv_dim * 2, out_channels=g_conv_dim * 2)
+            GenResBlock(in_channels=g_conv_dim * 2, out_channels=g_conv_dim * 2)
         )
 
         # (128, 32, 32) -> (64, 64, 64)
         self.layer4 = nn.Sequential(
             nn.ConvTranspose2d(in_channels=g_conv_dim * 2, out_channels=g_conv_dim, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
-            GenBottleneckBlock(in_channels=g_conv_dim, out_channels=g_conv_dim)
+            GenResBlock(in_channels=g_conv_dim, out_channels=g_conv_dim)
         )
 
         # (64, 64, 64) -> (3, 128, 128)
