@@ -73,13 +73,10 @@ class Discriminator(nn.Module):
 
         # Hinge Loss를 사용할 때 선형 출력을 위해 마지막 판정(최종) 레이어에는 SN 적용 X
         # (1024, 4, 4) -> (1, 1, 1) 확률값
+        # Optimized: Removed intermediate Linear layer to prevent information bottleneck
         self.final = nn.Sequential(
             nn.Flatten(),    # (Batch, 1024 * 4 * 4)
-
-            spectral_norm(nn.Linear(in_features=d_conv_dim * 16 * 4 * 4, out_features=512, bias=True)),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-
-            nn.Linear(in_features=512, out_features=1, bias=True)
+            nn.Linear(in_features=d_conv_dim * 16 * 4 * 4, out_features=1, bias=True)
         )
 
     def forward(self, x):

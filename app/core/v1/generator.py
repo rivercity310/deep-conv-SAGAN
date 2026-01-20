@@ -92,13 +92,10 @@ class Generator(nn.Module):
 
         # --- 
         # (latent_dim, 1, 1) -> (1024, 4, 4)
+        # Optimized: Single projection step to preserve information flow from latent space
         self.initial = nn.Sequential(
-            spectral_norm(nn.Linear(in_features=latent_dim, out_features=512, bias=False)),
-            nn.BatchNorm1d(num_features=512),
-            nn.ReLU(inplace=True),
-
-            spectral_norm(nn.Linear(in_features=512, out_features=1024 * 4 * 4, bias=False)),
-            nn.BatchNorm1d(num_features=1024 * 4 * 4),
+            spectral_norm(nn.Linear(in_features=latent_dim, out_features=g_conv_dim * 16 * 4 * 4, bias=False)),
+            nn.BatchNorm1d(num_features=g_conv_dim * 16 * 4 * 4),
             nn.ReLU(inplace=True),
 
             # Unflatten 추가: (Batch, 1024*4*4) -> (Batch, 1024, 4, 4)
