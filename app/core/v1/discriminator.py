@@ -3,20 +3,17 @@ from torch.nn.utils import spectral_norm
 from app.core.self_attention import SelfAttention
 
 
-class DiscBottleneckBlock(nn.Module):
+class DiscResBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1):
-        super(DiscBottleneckBlock, self).__init__()
-        mid_channels = out_channels // 4
+        super(DiscResBlock, self).__init__()
 
-        # Bottleneck 구조 정의 
-        self.bottleneck = nn.Sequential(
-            spectral_norm(nn.Conv2d(in_channels=in_channels, out_channels=mid_channels, kernel_size=1, bias=False)),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+        self.conv1 = nn.Sequential(
+            spectral_norm(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, padding=1, bias=False)),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
 
-            spectral_norm(nn.Conv2d(in_channels=mid_channels, out_channels=mid_channels, kernel_size=3, stride=stride, padding=1, bias=False)),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-
-            spectral_norm(nn.Conv2d(in_channels=mid_channels, out_channels=out_channels, kernel_size=1, bias=False)),
+        self.conv2 = nn.Sequential(
+            spectral_norm(nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1, bias=False))
         )
 
         self.shortcut = nn.Sequential()
@@ -26,7 +23,7 @@ class DiscBottleneckBlock(nn.Module):
             )
     
     def forward(self, x):
-        x = self.bottleneck(x) + self.shortcut(x)
+        x = self.conv2(self.conv1(x)) + self.shortcut(x)
         return nn.functional.leaky_relu(x, 0.2, inplace=True)
 
 
@@ -54,23 +51,24 @@ class Discriminator(nn.Module):
 
         # (64, 64, 64) -> (128, 32, 32)
         self.layer2 = nn.Sequential(
-            DiscBottleneckBlock(in_channels=d_conv_dim, out_channels=d_conv_dim * 2, stride=2)
+            DiscResBlock(in_channels=d_conv_dim, out_channels=d_conv_dim * 2, stride=2),
+            SelfAttention(in_channels=d_conv_dim * 2)
         )
 
         # (128, 32, 32) -> (256, 16, 16)
         self.layer3 = nn.Sequential(
-            DiscBottleneckBlock(in_channels=d_conv_dim * 2, out_channels=d_conv_dim * 4, stride=2),
+            DiscResBlock(in_channels=d_conv_dim * 2, out_channels=d_conv_dim * 4, stride=2),
             SelfAttention(in_channels=d_conv_dim * 4)
         )
 
         # (256, 16, 16) -> (512, 8, 8)
         self.layer4 = nn.Sequential(
-            DiscBottleneckBlock(in_channels=d_conv_dim * 4, out_channels=d_conv_dim * 8, stride=2)
+            DiscResBlock(in_channels=d_conv_dim * 4, out_channels=d_conv_dim * 8, stride=2)
         )
 
         # (512, 8, 8) -> (1024, 4, 4)
         self.layer5 = nn.Sequential(
-            DiscBottleneckBlock(in_channels=d_conv_dim * 8, out_channels=d_conv_dim * 16, stride=2)
+            DiscResBlock(in_channels=d_conv_dim * 8, out_channels=d_conv_dim * 16, stride=2)
         )
 
         # Hinge Loss를 사용할 때 선형 출력을 위해 마지막 판정(최종) 레이어에는 SN 적용 X

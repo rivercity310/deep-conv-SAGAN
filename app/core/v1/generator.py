@@ -121,6 +121,7 @@ class Generator(nn.Module):
         # (256, 16, 16) -> (128, 32, 32)
         self.layer3 = nn.Sequential(
             nn.ConvTranspose2d(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 2, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
+            SelfAttention(in_channels=g_conv_dim * 2),
             GenResBlock(in_channels=g_conv_dim * 2, out_channels=g_conv_dim * 2)
         )
 
