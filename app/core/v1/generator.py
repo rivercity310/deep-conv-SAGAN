@@ -33,6 +33,18 @@ class GenResBlock(nn.Module):
         return nn.functional.relu(out, inplace=True)
 
 
+class UpSampleConv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3):
+        super(UpSampleConv2d, self).__init__()
+        self.layer = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=1, padding=1, bias=False)
+        )
+
+    def forward(self, x):
+        return self.layer(x)
+
+
 class Generator(nn.Module):
     """
     GAN 아키텍쳐에서 Generator(생성자)는 판별자(Discriminator)의 피드백을 통해 가중치 업데이트를 수행.
@@ -104,33 +116,33 @@ class Generator(nn.Module):
 
         # (1024, 4, 4) -> (512, 8, 8)
         self.layer1 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=g_conv_dim * 16, out_channels=g_conv_dim * 8, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
+            UpSampleConv2d(in_channels=g_conv_dim * 16, out_channels=g_conv_dim * 8),
             GenResBlock(in_channels=g_conv_dim * 8, out_channels=g_conv_dim * 8)
         )
 
         # (512, 8, 8) -> (256, 16, 16)
         self.layer2 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=g_conv_dim * 8, out_channels=g_conv_dim * 4, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
+            UpSampleConv2d(in_channels=g_conv_dim * 8, out_channels=g_conv_dim * 4),
             SelfAttention(in_channels=g_conv_dim * 4),
             GenResBlock(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 4)
         )
 
         # (256, 16, 16) -> (128, 32, 32)
         self.layer3 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 2, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
+            UpSampleConv2d(in_channels=g_conv_dim * 4, out_channels=g_conv_dim * 2),
             SelfAttention(in_channels=g_conv_dim * 2),
             GenResBlock(in_channels=g_conv_dim * 2, out_channels=g_conv_dim * 2)
         )
 
         # (128, 32, 32) -> (64, 64, 64)
         self.layer4 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=g_conv_dim * 2, out_channels=g_conv_dim, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
+            UpSampleConv2d(in_channels=g_conv_dim * 2, out_channels=g_conv_dim),
             GenResBlock(in_channels=g_conv_dim, out_channels=g_conv_dim)
         )
 
         # (64, 64, 64) -> (3, 128, 128)
         self.final = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=g_conv_dim, out_channels=3, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False),
+            UpSampleConv2d(in_channels=g_conv_dim, out_channels=3),
             nn.Tanh()
         )
 
