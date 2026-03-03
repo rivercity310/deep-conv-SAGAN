@@ -80,7 +80,7 @@ class SAGANTrainer:
         self.g_opt = optim.Adam(params=self.g.parameters(), lr=TRAIN["lr_g"], betas=betas)
         self.d_opt = optim.Adam(params=self.d.parameters(), lr=TRAIN["lr_d"], betas=betas)
 
-        self.fixed_noise = torch.randn(32, self.latent_dim).to(self.device)
+        self.fixed_noise = torch.randn(32, self.latent_dim, device=self.device)
 
     def train(self, epochs: int, start_epoch: int = 0):
         sample_dir = os.path.abspath(os.path.join(os.getcwd(), self.sample_dir))
@@ -103,7 +103,7 @@ class SAGANTrainer:
                 self.d_opt.zero_grad()
 
                 # 가짜 이미지 생성
-                z = torch.randn(b_size, self.latent_dim).to(self.device)
+                z = torch.randn(b_size, self.latent_dim, device=self.device)
                 fake_imgs = self.g(z)
 
                 # [핵심] DiffAugment 적용
@@ -137,7 +137,7 @@ class SAGANTrainer:
                     self.g_opt.zero_grad()
 
                     # 가짜 이미지를 판별자가 진짜로 믿게 만들기 
-                    z = torch.randn(b_size, self.latent_dim).to(self.device)
+                    z = torch.randn(b_size, self.latent_dim, device=self.device)
                     fake_imgs_new = self.g(z)
                     fake_imgs_aug = diff_augment(fake_imgs_new, policy='color,translation')
 
@@ -167,11 +167,11 @@ class SAGANTrainer:
                 save_image(fake_img, fixed_noise_path, normalize=True, value_range=(-1, 1))
 
                 # 랜덤 노이즈 이미지 
-                z = torch.randn(32, self.latent_dim).to(self.device)
+                z = torch.randn(32, self.latent_dim, device=self.device)
                 fake_img_random = self.g(z).detach().cpu()
                 save_image(fake_img_random, random_noise_path, normalize=True, value_range=(-1, 1))
 
-                z = torch.randn(1, self.latent_dim).to(self.device)
+                z = torch.randn(1, self.latent_dim, device=self.device)
                 fake_img_single = self.g(z).detach().cpu()
                 save_image(fake_img_single, random_noise_single_path, normalize=True, value_range=(-1, 1))
 
